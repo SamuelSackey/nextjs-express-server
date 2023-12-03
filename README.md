@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Next.js Express Server
 
-## Getting Started
+Integrating Express into Next.js to allow things like self-hosting, web sockets, etc.
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Add `express` to project
+
+```sh
+pnpm add express
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Add the types for express
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+pnpm add -D @types/express
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Add `cross-env` to dev dependencies
 
-## Learn More
+> For cross-platform environment variable commands, ie. Non-bash environments
 
-To learn more about Next.js, take a look at the following resources:
+```sh
+pnpm add -D cross-env
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Add `nodemon` and `ts-node` to dev dependencies
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+```sh
+pnpm add -D nodemon ts-node
+```
 
-## Deploy on Vercel
+Create `nodemon.json`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{
+  "watch": ["server.ts"],
+  "exec": "ts-node --project tsconfig.server.json src/server.ts -- -I",
+  "ext": "js ts",
+  "stdin": false
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Create `tsconfig.server.json` which will be the project config for the server
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "noEmit": false,
+    "jsx": "react"
+  },
+  "include": ["src/server.ts"]
+}
+```
+
+Create `.env.local`
+
+```.env
+PORT=3000
+NEXT_PUBLIC_SERVER_URL=http://localhost:3000
+```
+
+Create `src/server.ts`
+
+```ts
+import express from "express";
+import next from "next";
+
+const PORT = Number(process.env.PORT) || 3000;
+
+const app = express();
+const nextApp = next({
+  dev: process.env.NODE_ENV !== "production",
+});
+const nextHandler = nextApp.getRequestHandler();
+
+const start = async () => {
+  // forward routes from express to nextjs
+  app.use((req, res) => nextHandler(req, res));
+
+  // Think it runs when the next app finishes startup
+  nextApp.prepare().then(() => {
+    // initialize express server to listen on port
+    app.listen(PORT, async () => {
+      console.log(`\n   ▲ Next.js App`);
+      console.log(`   - Port:    ${process.env.PORT}`);
+      console.log(`   - App URL: ${process.env.NEXT_PUBLIC_SERVER_URL}\n`);
+    });
+  });
+};
+
+start();
+```
+
+Modify `package.json` with new scripts
+
+```json
+  "scripts": {
+    "dev": "nodemon",
+    "build:server": "tsc --project tsconfig.server.json", //new
+    "build": "npm run build:server && next build", //new
+    "start": "cross-env NODE_ENV=production node dist/server.js", //new
+    "lint": "next lint"
+  },
+```
+
+Add `dist` folder to `.gitignore` (Optional)
+
+```
+/dist
+```
